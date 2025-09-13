@@ -37,6 +37,8 @@ CALENDAR_BENCH_URL_MAP = {
     "US_ALL": "^GSPC",
     "IN_ALL": "^NSEI",
     "BR_ALL": "^BVSP",
+    # NOTE: Use the time series of ^N225(Nikkei 225) as the sequence of all stocks
+    "JP_ALL": "^N225",
 }
 
 _BENCH_CALENDAR_LIST = None
@@ -45,6 +47,7 @@ _HS_SYMBOLS = None
 _US_SYMBOLS = None
 _IN_SYMBOLS = None
 _BR_SYMBOLS = None
+_JP_SYMBOLS = None
 _EN_FUND_SYMBOLS = None
 _CALENDAR_MAP = {}
 
@@ -58,7 +61,7 @@ def get_calendar_list(bench_code="CSI300") -> List[pd.Timestamp]:
     Parameters
     ----------
     bench_code: str
-        value from ["CSI300", "CSI500", "ALL", "US_ALL"]
+        value from ["CSI300", "CSI500", "ALL", "US_ALL", "IN_ALL", "BR_ALL", "JP_ALL"]
 
     Returns
     -------
@@ -73,7 +76,7 @@ def get_calendar_list(bench_code="CSI300") -> List[pd.Timestamp]:
 
     calendar = _CALENDAR_MAP.get(bench_code, None)
     if calendar is None:
-        if bench_code.startswith("US_") or bench_code.startswith("IN_") or bench_code.startswith("BR_"):
+        if bench_code.startswith("US_") or bench_code.startswith("IN_") or bench_code.startswith("BR_") or bench_code.startswith("JP_"):
             print(Ticker(CALENDAR_BENCH_URL_MAP[bench_code]))
             print(Ticker(CALENDAR_BENCH_URL_MAP[bench_code]).history(interval="1d", period="max"))
             df = Ticker(CALENDAR_BENCH_URL_MAP[bench_code]).history(interval="1d", period="max")
@@ -467,6 +470,30 @@ def get_br_stock_symbols(qlib_data_path: [str, Path] = None) -> list:
         _BR_SYMBOLS = sorted(set(map(_format, _all_symbols)))
 
     return _BR_SYMBOLS
+
+
+def get_jp_stock_symbols(qlib_data_path: [str, Path] = None) -> list:
+    """get Japan (TSE Prime) stock symbols"""
+
+    global _JP_SYMBOLS  # pylint: disable=W0603
+
+    @deco_retry
+    def _get_jpx():
+        url = "https://raw.githubusercontent.com/FinanceData/FinanceData/master/finance_data/JPX/jpx_prime_list.csv"
+        df = pd.read_csv(url)
+        if "Code" in df.columns:
+            codes = df["Code"].astype(str)
+        elif "コード" in df.columns:
+            codes = df["コード"].astype(str)
+        else:
+            codes = df.iloc[:, 0].astype(str)
+        codes = codes.str.zfill(4) + ".T"
+        return codes.unique().tolist()
+
+    if _JP_SYMBOLS is None:
+        _JP_SYMBOLS = sorted(set(_get_jpx()))
+
+    return _JP_SYMBOLS
 
 
 def get_en_fund_symbols(qlib_data_path: [str, Path] = None) -> list:
