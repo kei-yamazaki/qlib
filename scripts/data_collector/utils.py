@@ -37,6 +37,7 @@ CALENDAR_BENCH_URL_MAP = {
     "US_ALL": "^GSPC",
     "IN_ALL": "^NSEI",
     "BR_ALL": "^BVSP",
+    "JP_ALL": "^N225",
 }
 
 _BENCH_CALENDAR_LIST = None
@@ -44,6 +45,7 @@ _ALL_CALENDAR_LIST = None
 _HS_SYMBOLS = None
 _US_SYMBOLS = None
 _IN_SYMBOLS = None
+_JP_SYMBOLS = None
 _BR_SYMBOLS = None
 _EN_FUND_SYMBOLS = None
 _CALENDAR_MAP = {}
@@ -73,9 +75,12 @@ def get_calendar_list(bench_code="CSI300") -> List[pd.Timestamp]:
 
     calendar = _CALENDAR_MAP.get(bench_code, None)
     if calendar is None:
-        if bench_code.startswith("US_") or bench_code.startswith("IN_") or bench_code.startswith("BR_"):
-            print(Ticker(CALENDAR_BENCH_URL_MAP[bench_code]))
-            print(Ticker(CALENDAR_BENCH_URL_MAP[bench_code]).history(interval="1d", period="max"))
+        if (
+            bench_code.startswith("US_")
+            or bench_code.startswith("IN_")
+            or bench_code.startswith("BR_")
+            or bench_code.startswith("JP_")
+        ):
             df = Ticker(CALENDAR_BENCH_URL_MAP[bench_code]).history(interval="1d", period="max")
             calendar = df.index.get_level_values(level="date").map(pd.Timestamp).unique().tolist()
         else:
@@ -416,6 +421,29 @@ def get_in_stock_symbols(qlib_data_path: [str, Path] = None) -> list:
         _IN_SYMBOLS = sorted(set(_all_symbols))
 
     return _IN_SYMBOLS
+
+
+def get_jp_stock_symbols(qlib_data_path: [str, Path] = None) -> list:
+    """get JP stock symbols
+
+    Returns
+    -------
+        stock symbols
+    """
+    global _JP_SYMBOLS  # pylint: disable=W0603
+
+    @deco_retry
+    def _get_jpx():
+        url = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
+        df = pd.read_excel(url, dtype={"コード": str})
+        df = df[df["市場・商品区分"].astype(str).str.contains("プライム", na=False)]
+        symbols = (df["コード"].str.zfill(4) + ".T").unique().tolist()
+        return symbols
+
+    if _JP_SYMBOLS is None:
+        _all_symbols = _get_jpx()
+        _JP_SYMBOLS = sorted(set(_all_symbols))
+    return _JP_SYMBOLS
 
 
 def get_br_stock_symbols(qlib_data_path: [str, Path] = None) -> list:
