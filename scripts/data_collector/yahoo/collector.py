@@ -38,6 +38,7 @@ from data_collector.utils import (
     get_us_stock_symbols,
     get_in_stock_symbols,
     get_br_stock_symbols,
+    get_jp_stock_symbols,
     generate_minutes_calendar_from_daily,
     calc_adjusted_price,
 )
@@ -364,6 +365,32 @@ class YahooCollectorBR1min(YahooCollectorBR):
     retry = 2
 
 
+class YahooCollectorJP(YahooCollector, ABC):
+    def get_instrument_list(self):
+        logger.info("get JP stock symbols......")
+        symbols = get_jp_stock_symbols()
+        logger.info(f"get {len(symbols)} symbols.")
+        return symbols
+
+    def download_index_data(self):
+        pass
+
+    def normalize_symbol(self, symbol):
+        return code_to_fname(symbol).upper()
+
+    @property
+    def _timezone(self):
+        return "Asia/Tokyo"
+
+
+class YahooCollectorJP1d(YahooCollectorJP):
+    pass
+
+
+class YahooCollectorJP1min(YahooCollectorJP):
+    pass
+
+
 class YahooNormalize(BaseNormalize):
     COLUMNS = ["open", "close", "high", "low", "volume"]
     DAILY_FORMAT = "%Y-%m-%d"
@@ -669,6 +696,29 @@ class YahooNormalizeIN1min(YahooNormalizeIN, YahooNormalize1min):
         return fname_to_code(symbol)
 
 
+class YahooNormalizeJP:
+    def _get_calendar_list(self) -> Iterable[pd.Timestamp]:
+        return get_calendar_list("JP_ALL")
+
+
+class YahooNormalizeJP1d(YahooNormalizeJP, YahooNormalize1d):
+    pass
+
+
+class YahooNormalizeJP1min(YahooNormalizeJP, YahooNormalize1min):
+    CALC_PAUSED_NUM = False
+
+    def _get_calendar_list(self) -> Iterable[pd.Timestamp]:
+        # TODO: support 1min
+        raise ValueError("Does not support 1min")
+
+    def _get_1d_calendar_list(self):
+        return get_calendar_list("JP_ALL")
+
+    def symbol_to_yahoo(self, symbol):
+        return fname_to_code(symbol)
+
+
 class YahooNormalizeCN:
     def _get_calendar_list(self) -> Iterable[pd.Timestamp]:
         # TODO: from MSN
@@ -739,7 +789,7 @@ class Run(BaseRun):
         interval: str
             freq, value from [1min, 1d], default 1d
         region: str
-            region, value from ["CN", "US", "BR"], default "CN"
+            region, value from ["CN", "US", "IN", "BR", "JP"], default "CN"
         """
         super().__init__(source_dir, normalize_dir, max_workers, interval)
         self.region = region
